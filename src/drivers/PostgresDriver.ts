@@ -89,6 +89,8 @@ export default class PostgresDriver extends AbstractDriver {
             is_identity: string; // reccommended INDENTITY type for pg > 10
             isunique: string;
             enumvalues: string | null;
+            table_comment: string | null;
+            column_comment: string | null;
             /* eslint-enable camelcase */
         }[] = (
             await this.Connection
@@ -111,7 +113,9 @@ export default class PostgresDriver extends AbstractDriver {
         INNER JOIN "pg_type" "t" ON "t"."oid" = "e"."enumtypid"
         INNER JOIN "pg_namespace" "n" ON "n"."oid" = "t"."typnamespace"
         WHERE "n"."nspname" = table_schema AND "t"."typname"=udt_name
-                ) enumValues
+                ) enumValues,
+                (select pg_catalog.obj_description(oid) from pg_catalog.pg_class pgc where pgc.relname=c.table_name) as table_comment,
+                (select pg_catalog.col_description(oid,c.ordinal_position::int) from pg_catalog.pg_class pgc where pgc.relname=c.table_name) as column_comment
                     FROM INFORMATION_SCHEMA.COLUMNS c
                     where table_schema in (${PostgresDriver.buildEscapedObjectList(
                         schemas
@@ -159,6 +163,10 @@ export default class PostgresDriver extends AbstractDriver {
                             );
                         }
                         return;
+                    }
+
+                    if (resp.column_comment) {
+                        options.comment = resp.column_comment;
                     }
 
                     const columnType = columnTypes.sqlType;
